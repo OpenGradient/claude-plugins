@@ -6,5 +6,6 @@
         "name": "OpenGradient",
         "url": "https://opengradient.ai"
     },
-    "homepage": "https://docs.opengradient.ai"
+    "homepage": "https://docs.opengradient.ai",
+    "skills": "./skills/"
 }
