@@ -1,12 +1,12 @@
 {
-    "name": "opengradient-plugins",
+    "name": "opengradient-marketplace",
     "owner": {
       "name": "OpenGradient",
       "url": "https://opengradient.ai"
     },
     "plugins": [
       {
-        "name": "opengradient-sdk",
+        "name": "opengradient-plugin",
         "source": "./skills/opengradient-sdk",
         "description": "Adds the /opengradient-sdk skill to Claude Code, providing guidance for the OpenGradient Python SDK - a decentralized AI inference platform. Helps write correct, idiomatic code for verified LLM inference via TEE, x402 payment settlement, multi-provider models (OpenAI, Anthropic, Google, xAI), on-chain ONNX model inference, LangChain agent integration, digital twins chat, and model hub operations."
       }
