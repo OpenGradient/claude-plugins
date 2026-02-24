@@ -1,6 +1,6 @@
 # OpenGradient Plugins for Claude Code
 
-A [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/plugins) that provides expert guidance for the [OpenGradient Python SDK](https://docs.opengradient.ai) — a decentralized AI inference platform with verified execution and on-chain settlement.
+A [Claude Code plugin](https://docs.anthropic.com/en/docs/claude-code/plugins) that provides expert guidance for the [OpenGradient Python SDK](https://docs.opengradient.ai) - a decentralized AI inference platform with verified execution and on-chain settlement.
 
 ## What is OpenGradient?
 
@@ -42,7 +42,7 @@ Invoke the skill directly:
 /opengradient-sdk write a streaming chat completion with tool calling
 ```
 
-Or just describe what you want to build with OpenGradient — Claude will automatically use the skill when relevant.
+Or just describe what you want to build with OpenGradient - Claude will automatically use the skill when relevant.
 
 ### Example prompts
 
@@ -51,21 +51,6 @@ Or just describe what you want to build with OpenGradient — Claude will automa
 /opengradient-sdk build a LangChain ReAct agent with OpenGradient
 /opengradient-sdk upload an ONNX model to the model hub
 /opengradient-sdk show me how to use x402 settlement with metadata
-```
-
-## Project structure
-
-```
-.claude-plugin/
-  marketplace.json                  # Marketplace metadata
-plugins/
-  opengradient-plugin/
-    .claude-plugin/
-      plugin.json                   # Plugin metadata and configuration
-    skills/
-      opengradient-sdk/
-        SKILL.md                    # Skill definition and code patterns
-        api-reference.md            # Detailed API reference
 ```
 
 ## Links
