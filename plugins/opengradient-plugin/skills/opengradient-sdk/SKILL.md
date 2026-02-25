@@ -45,7 +45,8 @@ Before the first LLM call, approve OPG token spending (idempotent):
 client.llm.ensure_opg_approval(opg_amount=5)
 ```
 
-Users must acquire $OPG tokens on Base Sepolia in their wallet. If user owns no $OPG, you they can request via our [faucet](https://faucet.opengradient.ai/).
+Users must acquire $OPG tokens on Base Sepolia in their wallet in order to pay for inferences via x402.
+If the user owns no $OPG, you they can request via our [faucet](https://faucet.opengradient.ai/).
 
 ## Available Models (`og.TEE_LLM`)
 
