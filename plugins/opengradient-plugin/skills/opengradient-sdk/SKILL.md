@@ -15,6 +15,15 @@ When the user describes what they want to build, generate working code that foll
 
 You can find more information about the OpenGradient infrastructure on https://docs.opengradient.ai.
 
+## Installation
+
+This guide was written for OpenGradient SDK version 0.9.4, make sure to install this version.
+
+```bash
+# Requires Python >=3.11
+pip install opengradient==0.9.4
+```
+
 ## SDK Overview
 
 OpenGradient is a decentralized AI inference platform. The SDK provides:
@@ -28,69 +37,101 @@ OpenGradient is a decentralized AI inference platform. The SDK provides:
 
 ## Initialization
 
+Each service is instantiated separately — there is no single `init()` function:
+
 ```python
 import opengradient as og
 
-client = og.init(
-    private_key="0x...",          # Required: Base Sepolia key with OPG tokens
-    alpha_private_key="0x...",    # Optional: OpenGradient testnet key
-    email="...",                  # Optional: Model Hub auth
-    password="...",               # Optional: Model Hub auth
-    twins_api_key="...",          # Optional: Digital twins
-)
+# LLM inference (requires Base Sepolia private key with OPG tokens)
+llm = og.LLM(private_key="0x...")
+
+# On-chain ONNX inference (requires OpenGradient testnet private key)
+alpha = og.Alpha(private_key="0x...")
+
+# Model Hub (requires email/password auth)
+hub = og.ModelHub(email="...", password="...")
+
+# Digital twins (requires twins API key)
+twins = og.Twins(api_key="...")
 ```
 
-Before the first LLM call, approve OPG token spending (idempotent):
+Before the first LLM call, approve OPG token spending (idempotent — skips if allowance is sufficient):
 ```python
-client.llm.ensure_opg_approval(opg_amount=5)
+llm.ensure_opg_approval(min_allowance=5)
 ```
+
+The `ensure_opg_approval` method accepts:
+- `min_allowance` (float): Minimum OPG allowance required.
+- `approve_amount` (float, optional): Amount to approve. Defaults to `2 * min_allowance`.
+
+Returns a `Permit2ApprovalResult` with `allowance_before`, `allowance_after`, and `tx_hash` (None if no approval was needed).
 
 ## Available Models (`og.TEE_LLM`)
 
 | Provider   | Models |
 |------------|--------|
-| OpenAI     | `GPT_4_1_2025_04_14`, `GPT_4O`, `O4_MINI` |
-| Anthropic  | `CLAUDE_3_7_SONNET`, `CLAUDE_3_5_HAIKU`, `CLAUDE_4_0_SONNET` |
-| Google     | `GEMINI_2_5_FLASH`, `GEMINI_2_5_PRO`, `GEMINI_2_0_FLASH`, `GEMINI_2_5_FLASH_LITE` |
-| xAI        | `GROK_3_MINI_BETA`, `GROK_3_BETA`, `GROK_2_1212`, `GROK_4_1_FAST`, `GROK_4_1_FAST_NON_REASONING` |
+| OpenAI     | `GPT_4_1_2025_04_14`, `O4_MINI`, `GPT_5`, `GPT_5_MINI`, `GPT_5_2` |
+| Anthropic  | `CLAUDE_SONNET_4_5`, `CLAUDE_SONNET_4_6`, `CLAUDE_HAIKU_4_5`, `CLAUDE_OPUS_4_5`, `CLAUDE_OPUS_4_6` |
+| Google     | `GEMINI_2_5_FLASH`, `GEMINI_2_5_PRO`, `GEMINI_2_5_FLASH_LITE`, `GEMINI_3_PRO`, `GEMINI_3_FLASH` |
+| xAI        | `GROK_4`, `GROK_4_FAST`, `GROK_4_1_FAST`, `GROK_4_1_FAST_NON_REASONING` |
 
 ## Settlement Modes (`og.x402SettlementMode`)
 
-- `SETTLE` — Hashes only (maximum privacy)
-- `SETTLE_METADATA` — Full data on-chain (maximum transparency)
-- `SETTLE_BATCH` — Aggregated hashes (most cost-efficient, default)
+- `PRIVATE` — Payment only, no data on-chain (maximum privacy)
+- `BATCH_HASHED` — Aggregated into Merkle tree (most cost-efficient, **default**)
+- `INDIVIDUAL_FULL` — Full input/output recorded on-chain (maximum transparency)
 
 ## Core Patterns
+
+**IMPORTANT**: `llm.chat()` and `llm.completion()` are **async** methods. Use `await` inside an async function or `asyncio.run()` for top-level calls.
 
 ### Basic Chat
 
 ```python
-result = client.llm.chat(
+import asyncio
+import opengradient as og
+
+llm = og.LLM(private_key="0x...")
+llm.ensure_opg_approval(min_allowance=5)
+
+result = asyncio.run(llm.chat(
     model=og.TEE_LLM.GEMINI_2_5_FLASH,
     messages=[{"role": "user", "content": "Hello!"}],
     max_tokens=300,
     temperature=0.0,
-)
+))
 print(result.chat_output["content"])
 ```
 
 ### Streaming
 
 ```python
-stream = client.llm.chat(
-    model=og.TEE_LLM.GPT_4_1_2025_04_14,
-    messages=[{"role": "user", "content": "Explain quantum computing"}],
-    max_tokens=500,
-    stream=True,
-)
-for chunk in stream:
-    if chunk.choices[0].delta.content:
-        print(chunk.choices[0].delta.content, end="", flush=True)
+import asyncio
+import opengradient as og
+
+async def stream_example():
+    llm = og.LLM(private_key="0x...")
+    llm.ensure_opg_approval(min_allowance=5)
+
+    stream = await llm.chat(
+        model=og.TEE_LLM.GPT_5,
+        messages=[{"role": "user", "content": "Explain quantum computing"}],
+        max_tokens=500,
+        stream=True,
+    )
+    async for chunk in stream:
+        if chunk.choices[0].delta.content:
+            print(chunk.choices[0].delta.content, end="", flush=True)
+
+asyncio.run(stream_example())
 ```
 
 ### Tool Calling
 
 ```python
+import asyncio
+import opengradient as og
+
 tools = [{
     "type": "function",
     "function": {
@@ -104,45 +145,75 @@ tools = [{
     },
 }]
 
-result = client.llm.chat(
-    model=og.TEE_LLM.GPT_4O,
-    messages=[{"role": "user", "content": "Weather in NYC?"}],
-    tools=tools,
-    max_tokens=200,
-)
+async def tool_example():
+    llm = og.LLM(private_key="0x...")
+    llm.ensure_opg_approval(min_allowance=5)
 
-if result.finish_reason == "tool_calls":
-    for tc in result.chat_output["tool_calls"]:
-        print(f"Call: {tc['function']['name']}({tc['function']['arguments']})")
+    result = await llm.chat(
+        model=og.TEE_LLM.GPT_5,
+        messages=[{"role": "user", "content": "Weather in NYC?"}],
+        tools=tools,
+        max_tokens=200,
+    )
+
+    if result.finish_reason == "tool_calls":
+        for tc in result.chat_output["tool_calls"]:
+            print(f"Call: {tc['function']['name']}({tc['function']['arguments']})")
+
+asyncio.run(tool_example())
 ```
 
 ### Multi-Turn Tool Agent Loop
 
 ```python
-messages = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": user_query},
-]
+import asyncio
+import opengradient as og
 
-for _ in range(max_iterations):
-    result = client.llm.chat(
-        model=og.TEE_LLM.GPT_4O,
-        messages=messages,
-        tools=tools,
-        tool_choice="auto",
-    )
-    if result.finish_reason == "tool_calls":
-        messages.append(result.chat_output)
-        for tc in result.chat_output["tool_calls"]:
-            tool_result = execute_tool(tc["function"]["name"], tc["function"]["arguments"])
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": tool_result,
-            })
-    else:
-        final_answer = result.chat_output["content"]
-        break
+async def agent_loop(user_query, tools, max_iterations=5):
+    llm = og.LLM(private_key="0x...")
+    llm.ensure_opg_approval(min_allowance=5)
+
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": user_query},
+    ]
+
+    for _ in range(max_iterations):
+        result = await llm.chat(
+            model=og.TEE_LLM.GPT_5,
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+        )
+        if result.finish_reason == "tool_calls":
+            messages.append(result.chat_output)
+            for tc in result.chat_output["tool_calls"]:
+                tool_result = execute_tool(tc["function"]["name"], tc["function"]["arguments"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": tool_result,
+                })
+        else:
+            return result.chat_output["content"]
+```
+
+### Text Completion
+
+```python
+import asyncio
+import opengradient as og
+
+llm = og.LLM(private_key="0x...")
+llm.ensure_opg_approval(min_allowance=5)
+
+result = asyncio.run(llm.completion(
+    model=og.TEE_LLM.GPT_5,
+    prompt="The capital of France is",
+    max_tokens=50,
+    temperature=0.0,
+))
+print(result.completion_output)
 ```
 
 ### LangChain ReAct Agent
@@ -150,10 +221,11 @@ for _ in range(max_iterations):
 ```python
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+import opengradient as og
 
 llm = og.agents.langchain_adapter(
     private_key="0x...",
-    model_cid=og.TEE_LLM.GPT_4_1_2025_04_14,
+    model_cid=og.TEE_LLM.GPT_5,
     max_tokens=300,
 )
 
@@ -170,7 +242,11 @@ print(result["messages"][-1].content)
 ### On-Chain ONNX Inference (Alpha)
 
 ```python
-result = client.alpha.infer(
+import opengradient as og
+
+alpha = og.Alpha(private_key="0x...")
+
+result = alpha.infer(
     model_cid="QmbUqS93oc4JTLMHwpVxsE39mhNxy6hpf6Py3r9oANr8aZ",
     inference_mode=og.InferenceMode.VANILLA,
     model_input={"input": [1.0, 2.0, 3.0]},
@@ -184,9 +260,11 @@ print(result.transaction_hash)
 Digital twins are digital clones of people. You can create your own digital twin or browse existing ones on https://twin.fun. In order to chat to a twin, you or the developer needs to get the twin's unique ID.
 
 ```python
-client = og.init(private_key="0x...", twins_api_key="your-key")
+import opengradient as og
 
-result = client.twins.chat(
+twins = og.Twins(api_key="your-key")
+
+result = twins.chat(
     twin_id="0x1abd463fd6244be4a1dc0f69e0b70cd5",
     model=og.TEE_LLM.GROK_4_1_FAST_NON_REASONING,
     messages=[{"role": "user", "content": "What do you think about AI?"}],
@@ -198,31 +276,55 @@ print(result.chat_output["content"])
 ### Model Hub: Upload a Model
 
 ```python
-repo = client.model_hub.create_model(
+import opengradient as og
+
+hub = og.ModelHub(email="you@example.com", password="...")
+
+repo = hub.create_model(
     model_name="my-model",
     model_desc="A prediction model",
     version="1.0.0",
 )
-upload = client.model_hub.upload(
+upload = hub.upload(
+    model_path="./model.onnx",
     model_name=repo.name,
     version=repo.initialVersion,
-    model_path="./model.onnx",
 )
 print(f"Model CID: {upload.modelCid}")
 ```
 
 ## Return Types
 
-- **`TextGenerationOutput`**: `chat_output` (dict), `finish_reason`, `transaction_hash`, `payment_hash`
-- **`TextGenerationStream`**: iterable of `StreamChunk` objects
-- **`StreamChunk`**: `choices[0].delta.content`, `choices[0].delta.tool_calls`, `usage` (final only), `is_final`
+- **`TextGenerationOutput`**: `chat_output` (dict), `completion_output` (str), `finish_reason`, `transaction_hash`, `payment_hash`, `tee_signature`, `tee_timestamp`, `tee_id`, `tee_endpoint`, `tee_payment_address`
+- **`TextGenerationStream`**: async iterable of `StreamChunk` objects (use `async for`)
+- **`StreamChunk`**: `choices[0].delta.content`, `choices[0].delta.tool_calls`, `usage` (final chunk only), `is_final`, `tee_signature`, `tee_timestamp`
 - **`InferenceResult`**: `model_output` (dict of np.ndarray), `transaction_hash`
+- **`ModelRepository`**: `name`, `initialVersion`
+- **`FileUploadResult`**: `modelCid`, `size`
+
+## `llm.chat()` Full Signature
+
+```python
+async def chat(
+    self,
+    model: TEE_LLM,
+    messages: List[Dict],
+    max_tokens: int = 100,
+    stop_sequence: Optional[List[str]] = None,
+    temperature: float = 0.0,
+    tools: Optional[List[Dict]] = None,
+    tool_choice: Optional[str] = None,
+    x402_settlement_mode: x402SettlementMode = x402SettlementMode.BATCH_HASHED,
+    stream: bool = False,
+) -> Union[TextGenerationOutput, AsyncGenerator[StreamChunk, None]]:
+```
 
 ## Guidelines
 
-1. Always call `client.llm.ensure_opg_approval()` before the first LLM inference.
-2. Handle `finish_reason`: `"stop"` / `"length"` = text response, `"tool_calls"` = function calls.
-3. For streaming, check `chunk.choices[0].delta.content` is not None before printing.
-4. In tool-calling loops, append `result.chat_output` as the assistant message, then append each tool result with `role: "tool"` and matching `tool_call_id`.
-5. Use environment variables or config files for private keys — never hardcode them.
-6. If you are unsure about a specific API detail, read the source files listed above.
+1. Always call `llm.ensure_opg_approval(min_allowance=...)` before the first LLM inference.
+2. `llm.chat()` and `llm.completion()` are **async** — use `await` or `asyncio.run()`.
+3. Handle `finish_reason`: `"stop"` / `"length"` = text response, `"tool_calls"` = function calls.
+4. For streaming, use `async for` and check `chunk.choices[0].delta.content is not None` before printing.
+5. In tool-calling loops, append `result.chat_output` as the assistant message, then append each tool result with `role: "tool"` and matching `tool_call_id`.
+6. Use environment variables or config files for private keys — never hardcode them.
+7. If you are unsure about a specific API detail, read the source files in the SDK.
