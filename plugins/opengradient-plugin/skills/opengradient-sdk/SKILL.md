@@ -66,6 +66,9 @@ The `ensure_opg_approval` method accepts:
 
 Returns a `Permit2ApprovalResult` with `allowance_before`, `allowance_after`, and `tx_hash` (None if no approval was needed).
 
+Users must acquire $OPG tokens on Base Sepolia in their wallet in order to pay for inferences via x402.
+If the user owns no $OPG, you they can request via our [faucet](https://faucet.opengradient.ai/).
+
 ## Available Models (`og.TEE_LLM`)
 
 | Provider   | Models |

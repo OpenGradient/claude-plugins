@@ -29,7 +29,7 @@ When installed, this plugin adds the `/opengradient-sdk` skill to Claude Code. I
 ### Install the plugin
 
 ```bash
-claude plugin marketplace add https://github.com/OpenGradient/opengradient-claude-marketplace
+claude plugin marketplace add https://github.com/OpenGradient/claude-plugins
 ```
 
 This registers the OpenGradient marketplace and installs the plugin, making the `/opengradient-sdk` skill available in your Claude Code sessions.
